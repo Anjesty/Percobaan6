@@ -4,4 +4,13 @@
     <string name="title_dashboard">Dashboard</string>
     <string name="title_notifications">Notifications</string>
     <string name="title_history">History</string>
+    <string name="asthma_alert_speech">
+        Peringatan, terdeteksi serangan asma. Mohon segera berikan pertolongan.
+    </string>
+    <string name="asthma_instructions_speech">
+        Berikut adalah instruksi pertolongan pertama.
+        Langkah 1: Tenangkan pengguna dan bantu mereka untuk duduk tegak.
+        Langkah 2: Bantu pengguna menggunakan inhaler pereda. Berikan satu semprotan setiap 30 hingga 60 detik, hingga maksimal 10 semprotan.
+        Langkah 3: Jika kondisi tidak membaik atau semakin buruk, segera hubungi nomor darurat atau bawa ke rumah sakit terdekat.
+    </string>
 </resources>
