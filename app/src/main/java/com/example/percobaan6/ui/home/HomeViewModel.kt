@@ -3,10 +3,7 @@ package com.example.percobaan6.ui.home
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.percobaan6.ui.history.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 class HomeViewModel : ViewModel() {
     private val _text = MutableLiveData<String>().apply {
@@ -14,8 +11,8 @@ class HomeViewModel : ViewModel() {
     }
     val text: LiveData<String> = _text
 
-    private val _currentHealthData = MutableLiveData<RealTimeHealthData>()
-    val currentHealthData: LiveData<RealTimeHealthData> = _currentHealthData
+    private val _currentHealthData = MutableLiveData<RealTimeHealthData?>()
+    val currentHealthData: LiveData<RealTimeHealthData?> = _currentHealthData
 
     private val _healthAlerts = MutableLiveData<List<HealthStatus>>()
     val healthAlerts: LiveData<List<HealthStatus>> = _healthAlerts
@@ -26,7 +23,7 @@ class HomeViewModel : ViewModel() {
     val isConnected: LiveData<Boolean> = _isConnected
 
     private val _connectionStatus = MutableLiveData<String>().apply {
-        value = "Waiting for sensor data..."
+        value = "Not connected - waiting for sensor..."
     }
     val connectionStatus: LiveData<String> = _connectionStatus
 
@@ -41,28 +38,15 @@ class HomeViewModel : ViewModel() {
     val spo2History: LiveData<List<Float>> = _spo2History
 
     private val maxHistoryPoints = 20
-    private var isSimulating = true
 
-    init {
-        // Start with simulation until real data comes
-        startSimulatedDataGeneration()
-    }
-
-    /**
-     * Method to receive real sensor data from MainActivity
-     * Call this method when real BLE data is received
-     */
     fun updateSensorData(heartRate: Int, spo2: Int) {
-        // Stop simulation when real data comes
-        isSimulating = false
-
         val realData = RealTimeHealthData(
             timestamp = System.currentTimeMillis(),
             heartRate = heartRate.toFloat(),
             spo2 = spo2.toFloat(),
-            breathRate = 16f, // Default value since we're not using it
-            skinTemperature = 36.5f, // Default value since we're not using it
-            eda = 8f // Default value since we're not using it
+            breathRate = 16f,
+            skinTemperature = 36.5f,
+            eda = 8f
         )
 
         _currentHealthData.value = realData
@@ -73,22 +57,19 @@ class HomeViewModel : ViewModel() {
         analyzeHealthData(realData)
     }
 
-    /**
-     * Method to handle connection status from MainActivity
-     */
     fun updateConnectionStatus(isConnected: Boolean, message: String) {
         _isConnected.value = isConnected
         _connectionStatus.value = message
 
-        if (!isConnected && !isSimulating) {
-            // If disconnected and not simulating, start simulation again
-            isSimulating = true
-            startSimulatedDataGeneration()
+        if (!isConnected) {
+            _currentHealthData.value = null
+            _heartRateHistory.value = mutableListOf()
+            _spo2History.value = mutableListOf()
+            _healthAlerts.value = emptyList()
         }
     }
 
     private fun updateHistoryData(data: RealTimeHealthData) {
-        // Update heart rate history
         val heartRateList = _heartRateHistory.value?.toMutableList() ?: mutableListOf()
         heartRateList.add(data.heartRate)
         if (heartRateList.size > maxHistoryPoints) {
@@ -96,7 +77,6 @@ class HomeViewModel : ViewModel() {
         }
         _heartRateHistory.value = heartRateList
 
-        // Update SPO2 history
         val spo2List = _spo2History.value?.toMutableList() ?: mutableListOf()
         spo2List.add(data.spo2)
         if (spo2List.size > maxHistoryPoints) {
@@ -105,64 +85,13 @@ class HomeViewModel : ViewModel() {
         _spo2History.value = spo2List
     }
 
-    /**
-     * Simulate real-time health data generation
-     * This will be used as fallback when no real sensor data is available
-     */
-    private fun startSimulatedDataGeneration() {
-        viewModelScope.launch {
-            while (isSimulating) {
-                val simulatedData = generateSimulatedHealthData()
-
-                // Only update if we're still simulating (not receiving real data)
-                if (isSimulating) {
-                    _currentHealthData.value = simulatedData
-                    _connectionStatus.value = "Simulating sensor data..."
-                    updateHistoryData(simulatedData)
-                    analyzeHealthData(simulatedData)
-                }
-
-                delay(1000)
-            }
-        }
-    }
-
-    private fun generateSimulatedHealthData(): RealTimeHealthData {
-        return RealTimeHealthData(
-            timestamp = System.currentTimeMillis(),
-            heartRate = generateHeartRate(),
-            spo2 = generateSPO2(),
-            breathRate = 16f, // Default value
-            skinTemperature = 36.5f, // Default value
-            eda = 8f // Default value
-        )
-    }
-
-    private fun generateHeartRate(): Float {
-        val baseRate = 75f
-        val variation = kotlin.random.Random.nextFloat() * 20f - 10f // ±10 BPM
-        return (baseRate + variation).coerceIn(50f, 120f)
-    }
-
-    private fun generateSPO2(): Float {
-        val baseLevel = 98f
-        val variation = kotlin.random.Random.nextFloat() * 3f - 1.5f // ±1.5%
-        return (baseLevel + variation).coerceIn(90f, 100f)
-    }
-
     private fun analyzeHealthData(data: RealTimeHealthData) {
         val alerts = mutableListOf<HealthStatus>()
-
-        // Only analyze Heart Rate and SPO2
         alerts.add(data.analyzeHeartRate())
         alerts.add(data.analyzeSPO2())
-
         _healthAlerts.value = alerts
     }
 
-    /**
-     * Get current health summary
-     */
     fun getCurrentHealthSummary(): String {
         val data = _currentHealthData.value ?: return "No data available"
         val alerts = _healthAlerts.value ?: return "No alerts"
@@ -176,12 +105,354 @@ class HomeViewModel : ViewModel() {
             else -> "All parameters normal"
         }
     }
-
-    override fun onCleared() {
-        super.onCleared()
-        isSimulating = false
-    }
 }
+//package com.example.percobaan6.ui.home
+//
+//import androidx.lifecycle.LiveData
+//import androidx.lifecycle.MutableLiveData
+//import androidx.lifecycle.ViewModel
+//import androidx.lifecycle.viewModelScope
+//import com.example.percobaan6.ui.history.*
+//import kotlinx.coroutines.delay
+//import kotlinx.coroutines.launch
+//
+//class HomeViewModel : ViewModel() {
+//    private val _text = MutableLiveData<String>().apply {
+//        value = "Real-time Health Monitor"
+//    }
+//    val text: LiveData<String> = _text
+//
+//    private val _currentHealthData = MutableLiveData<RealTimeHealthData>()
+//    val currentHealthData: LiveData<RealTimeHealthData> = _currentHealthData
+//
+//    private val _healthAlerts = MutableLiveData<List<HealthStatus>>()
+//    val healthAlerts: LiveData<List<HealthStatus>> = _healthAlerts
+//
+//    private val _isConnected = MutableLiveData<Boolean>().apply {
+//        value = false
+//    }
+//    val isConnected: LiveData<Boolean> = _isConnected
+//
+//    private val _connectionStatus = MutableLiveData<String>().apply {
+//        value = "Waiting for sensor data..."
+//    }
+//    val connectionStatus: LiveData<String> = _connectionStatus
+//
+//    private val _heartRateHistory = MutableLiveData<List<Float>>().apply {
+//        value = mutableListOf()
+//    }
+//    val heartRateHistory: LiveData<List<Float>> = _heartRateHistory
+//
+//    private val _spo2History = MutableLiveData<List<Float>>().apply {
+//        value = mutableListOf()
+//    }
+//    val spo2History: LiveData<List<Float>> = _spo2History
+//
+//    private val maxHistoryPoints = 20
+//    private var isSimulating = true
+//    private var hasRealData = false
+//
+//    init {
+//        startSimulatedDataGeneration()
+//    }
+//
+//    fun updateSensorData(heartRate: Int, spo2: Int) {
+//        hasRealData = true
+//        isSimulating = false
+//
+//        val realData = RealTimeHealthData(
+//            timestamp = System.currentTimeMillis(),
+//            heartRate = heartRate.toFloat(),
+//            spo2 = spo2.toFloat(),
+//            breathRate = 16f,
+//            skinTemperature = 36.5f,
+//            eda = 8f
+//        )
+//
+//        _currentHealthData.value = realData
+//        _isConnected.value = true
+//        _connectionStatus.value = "Connected - Real sensor data"
+//
+//        updateHistoryData(realData)
+//        analyzeHealthData(realData)
+//    }
+//
+//    fun updateConnectionStatus(isConnected: Boolean, message: String) {
+//        _isConnected.value = isConnected
+//        _connectionStatus.value = message
+//
+//        if (!isConnected && hasRealData) {
+//            hasRealData = false
+//            isSimulating = true
+//            _connectionStatus.value = "Disconnected - Using simulation"
+//            startSimulatedDataGeneration()
+//        }
+//    }
+//
+//    private fun updateHistoryData(data: RealTimeHealthData) {
+//        val heartRateList = _heartRateHistory.value?.toMutableList() ?: mutableListOf()
+//        heartRateList.add(data.heartRate)
+//        if (heartRateList.size > maxHistoryPoints) {
+//            heartRateList.removeAt(0)
+//        }
+//        _heartRateHistory.value = heartRateList
+//
+//        val spo2List = _spo2History.value?.toMutableList() ?: mutableListOf()
+//        spo2List.add(data.spo2)
+//        if (spo2List.size > maxHistoryPoints) {
+//            spo2List.removeAt(0)
+//        }
+//        _spo2History.value = spo2List
+//    }
+//
+//    private fun startSimulatedDataGeneration() {
+//        viewModelScope.launch {
+//            while (isSimulating && !hasRealData) {
+//                val simulatedData = generateSimulatedHealthData()
+//
+//                _currentHealthData.value = simulatedData
+//                _connectionStatus.value = if (hasRealData) "Connected - Real sensor data" else "Simulating sensor data..."
+//                updateHistoryData(simulatedData)
+//                analyzeHealthData(simulatedData)
+//
+//                delay(1000)
+//            }
+//        }
+//    }
+//
+//    private fun generateSimulatedHealthData(): RealTimeHealthData {
+//        return RealTimeHealthData(
+//            timestamp = System.currentTimeMillis(),
+//            heartRate = generateHeartRate(),
+//            spo2 = generateSPO2(),
+//            breathRate = 16f,
+//            skinTemperature = 36.5f,
+//            eda = 8f
+//        )
+//    }
+//
+//    private fun generateHeartRate(): Float {
+//        val baseRate = 75f
+//        val variation = kotlin.random.Random.nextFloat() * 20f - 10f
+//        return (baseRate + variation).coerceIn(50f, 120f)
+//    }
+//
+//    private fun generateSPO2(): Float {
+//        val baseLevel = 98f
+//        val variation = kotlin.random.Random.nextFloat() * 3f - 1.5f
+//        return (baseLevel + variation).coerceIn(90f, 100f)
+//    }
+//
+//    private fun analyzeHealthData(data: RealTimeHealthData) {
+//        val alerts = mutableListOf<HealthStatus>()
+//        alerts.add(data.analyzeHeartRate())
+//        alerts.add(data.analyzeSPO2())
+//        _healthAlerts.value = alerts
+//    }
+//
+//    fun getCurrentHealthSummary(): String {
+//        val data = _currentHealthData.value ?: return "No data available"
+//        val alerts = _healthAlerts.value ?: return "No alerts"
+//
+//        val criticalAlerts = alerts.filter { it.status == AlertLevel.CRITICAL }
+//        val warningAlerts = alerts.filter { it.status == AlertLevel.WARNING }
+//
+//        return when {
+//            criticalAlerts.isNotEmpty() -> "Critical: ${criticalAlerts.size} alert(s)"
+//            warningAlerts.isNotEmpty() -> "Warning: ${warningAlerts.size} alert(s)"
+//            else -> "All parameters normal"
+//        }
+//    }
+//
+//    override fun onCleared() {
+//        super.onCleared()
+//        isSimulating = false
+//    }
+//}
+//package com.example.percobaan6.ui.home
+//
+//import androidx.lifecycle.LiveData
+//import androidx.lifecycle.MutableLiveData
+//import androidx.lifecycle.ViewModel
+//import androidx.lifecycle.viewModelScope
+//import com.example.percobaan6.ui.history.*
+//import kotlinx.coroutines.delay
+//import kotlinx.coroutines.launch
+//
+//class HomeViewModel : ViewModel() {
+//    private val _text = MutableLiveData<String>().apply {
+//        value = "Real-time Health Monitor"
+//    }
+//    val text: LiveData<String> = _text
+//
+//    private val _currentHealthData = MutableLiveData<RealTimeHealthData>()
+//    val currentHealthData: LiveData<RealTimeHealthData> = _currentHealthData
+//
+//    private val _healthAlerts = MutableLiveData<List<HealthStatus>>()
+//    val healthAlerts: LiveData<List<HealthStatus>> = _healthAlerts
+//
+//    private val _isConnected = MutableLiveData<Boolean>().apply {
+//        value = false
+//    }
+//    val isConnected: LiveData<Boolean> = _isConnected
+//
+//    private val _connectionStatus = MutableLiveData<String>().apply {
+//        value = "Waiting for sensor data..."
+//    }
+//    val connectionStatus: LiveData<String> = _connectionStatus
+//
+//    private val _heartRateHistory = MutableLiveData<List<Float>>().apply {
+//        value = mutableListOf()
+//    }
+//    val heartRateHistory: LiveData<List<Float>> = _heartRateHistory
+//
+//    private val _spo2History = MutableLiveData<List<Float>>().apply {
+//        value = mutableListOf()
+//    }
+//    val spo2History: LiveData<List<Float>> = _spo2History
+//
+//    private val maxHistoryPoints = 20
+//    private var isSimulating = true
+//
+//    init {
+//        // Start with simulation until real data comes
+//        startSimulatedDataGeneration()
+//    }
+//
+//    /**
+//     * Method to receive real sensor data from MainActivity
+//     * Call this method when real BLE data is received
+//     */
+//    fun updateSensorData(heartRate: Int, spo2: Int) {
+//        // Stop simulation when real data comes
+//        isSimulating = false
+//
+//        val realData = RealTimeHealthData(
+//            timestamp = System.currentTimeMillis(),
+//            heartRate = heartRate.toFloat(),
+//            spo2 = spo2.toFloat(),
+//            breathRate = 16f, // Default value since we're not using it
+//            skinTemperature = 36.5f, // Default value since we're not using it
+//            eda = 8f // Default value since we're not using it
+//        )
+//
+//        _currentHealthData.value = realData
+//        _isConnected.value = true
+//        _connectionStatus.value = "Connected - Receiving real sensor data"
+//
+//        updateHistoryData(realData)
+//        analyzeHealthData(realData)
+//    }
+//
+//    /**
+//     * Method to handle connection status from MainActivity
+//     */
+//    fun updateConnectionStatus(isConnected: Boolean, message: String) {
+//        _isConnected.value = isConnected
+//        _connectionStatus.value = message
+//
+//        if (!isConnected && !isSimulating) {
+//            // If disconnected and not simulating, start simulation again
+//            isSimulating = true
+//            startSimulatedDataGeneration()
+//        }
+//    }
+//
+//    private fun updateHistoryData(data: RealTimeHealthData) {
+//        // Update heart rate history
+//        val heartRateList = _heartRateHistory.value?.toMutableList() ?: mutableListOf()
+//        heartRateList.add(data.heartRate)
+//        if (heartRateList.size > maxHistoryPoints) {
+//            heartRateList.removeAt(0)
+//        }
+//        _heartRateHistory.value = heartRateList
+//
+//        // Update SPO2 history
+//        val spo2List = _spo2History.value?.toMutableList() ?: mutableListOf()
+//        spo2List.add(data.spo2)
+//        if (spo2List.size > maxHistoryPoints) {
+//            spo2List.removeAt(0)
+//        }
+//        _spo2History.value = spo2List
+//    }
+//
+//    /**
+//     * Simulate real-time health data generation
+//     * This will be used as fallback when no real sensor data is available
+//     */
+//    private fun startSimulatedDataGeneration() {
+//        viewModelScope.launch {
+//            while (isSimulating) {
+//                val simulatedData = generateSimulatedHealthData()
+//
+//                // Only update if we're still simulating (not receiving real data)
+//                if (isSimulating) {
+//                    _currentHealthData.value = simulatedData
+//                    _connectionStatus.value = "Simulating sensor data..."
+//                    updateHistoryData(simulatedData)
+//                    analyzeHealthData(simulatedData)
+//                }
+//
+//                delay(1000)
+//            }
+//        }
+//    }
+//
+//    private fun generateSimulatedHealthData(): RealTimeHealthData {
+//        return RealTimeHealthData(
+//            timestamp = System.currentTimeMillis(),
+//            heartRate = generateHeartRate(),
+//            spo2 = generateSPO2(),
+//            breathRate = 16f, // Default value
+//            skinTemperature = 36.5f, // Default value
+//            eda = 8f // Default value
+//        )
+//    }
+//
+//    private fun generateHeartRate(): Float {
+//        val baseRate = 75f
+//        val variation = kotlin.random.Random.nextFloat() * 20f - 10f // ±10 BPM
+//        return (baseRate + variation).coerceIn(50f, 120f)
+//    }
+//
+//    private fun generateSPO2(): Float {
+//        val baseLevel = 98f
+//        val variation = kotlin.random.Random.nextFloat() * 3f - 1.5f // ±1.5%
+//        return (baseLevel + variation).coerceIn(90f, 100f)
+//    }
+//
+//    private fun analyzeHealthData(data: RealTimeHealthData) {
+//        val alerts = mutableListOf<HealthStatus>()
+//
+//        // Only analyze Heart Rate and SPO2
+//        alerts.add(data.analyzeHeartRate())
+//        alerts.add(data.analyzeSPO2())
+//
+//        _healthAlerts.value = alerts
+//    }
+//
+//    /**
+//     * Get current health summary
+//     */
+//    fun getCurrentHealthSummary(): String {
+//        val data = _currentHealthData.value ?: return "No data available"
+//        val alerts = _healthAlerts.value ?: return "No alerts"
+//
+//        val criticalAlerts = alerts.filter { it.status == AlertLevel.CRITICAL }
+//        val warningAlerts = alerts.filter { it.status == AlertLevel.WARNING }
+//
+//        return when {
+//            criticalAlerts.isNotEmpty() -> "Critical: ${criticalAlerts.size} alert(s)"
+//            warningAlerts.isNotEmpty() -> "Warning: ${warningAlerts.size} alert(s)"
+//            else -> "All parameters normal"
+//        }
+//    }
+//
+//    override fun onCleared() {
+//        super.onCleared()
+//        isSimulating = false
+//    }
+//}
 //package com.example.percobaan6.ui.home
 //
 //import androidx.lifecycle.LiveData

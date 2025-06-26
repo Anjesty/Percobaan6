@@ -224,6 +224,433 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+//package com.example.percobaan6
+//
+//import android.Manifest
+//import android.bluetooth.*
+//import android.content.pm.PackageManager
+//import android.os.*
+//import android.widget.Toast
+//import androidx.activity.result.contract.ActivityResultContracts
+//import androidx.appcompat.app.AppCompatActivity
+//import androidx.core.app.ActivityCompat
+//import androidx.navigation.findNavController
+//import androidx.navigation.ui.AppBarConfiguration
+//import androidx.navigation.ui.setupWithNavController
+//import com.example.percobaan6.databinding.ActivityMainBinding
+//import com.example.percobaan6.ui.home.HomeViewModel
+//import androidx.lifecycle.ViewModelProvider
+//import androidx.navigation.NavController
+//import com.google.android.material.bottomnavigation.BottomNavigationView
+//import java.util.*
+//
+//class MainActivity : AppCompatActivity() {
+//
+//    private lateinit var binding: ActivityMainBinding
+//    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+//    private val deviceAddress = "8C:4F:00:3C:99:CE"
+//    private val serviceUUID = UUID.fromString("12345678-1234-1234-1234-1234567890ab")
+//    private val characteristicUUID = UUID.fromString("abcd1234-ab12-cd34-ef56-abcdef123456")
+//    private var bluetoothGatt: BluetoothGatt? = null
+//
+//    private val phoneNumber = "+6281234567890"
+//    private var retryCount = 0
+//    private val maxRetries = 5
+//    private val reconnectDelay = 3000L
+//
+//    private lateinit var homeViewModel: HomeViewModel
+//    private lateinit var navController: NavController
+//
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//
+//        binding = ActivityMainBinding.inflate(layoutInflater)
+//        setContentView(binding.root)
+//
+//        val navView: BottomNavigationView = binding.navView
+//        navController = findNavController(R.id.nav_host_fragment_activity_main)
+//        val appBarConfiguration = AppBarConfiguration(
+//            setOf(
+//                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications, R.id.navigation_history
+//            )
+//        )
+//        navView.setupWithNavController(navController)
+//
+//        homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
+//
+//        requestBluetoothPermissions {
+//            toast("Permission granted, connecting to BLE...")
+//            connectToBLE()
+//        }
+//    }
+//
+//    private fun requestBluetoothPermissions(onGranted: () -> Unit) {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+//            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+//        ) {
+//            val permissionLauncher =
+//                registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+//                    if (permissions.all { it.value }) {
+//                        onGranted()
+//                    } else {
+//                        toast("Bluetooth permission denied")
+//                        homeViewModel.updateConnectionStatus(false, "Bluetooth permission denied")
+//                    }
+//                }
+//
+//            permissionLauncher.launch(
+//                arrayOf(
+//                    Manifest.permission.BLUETOOTH_CONNECT,
+//                    Manifest.permission.BLUETOOTH_SCAN,
+//                    Manifest.permission.ACCESS_FINE_LOCATION
+//                )
+//            )
+//        } else {
+//            onGranted()
+//        }
+//    }
+//
+//    private fun connectToBLE() {
+//        val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
+//        if (device == null) {
+//            toast("Device not found")
+//            homeViewModel.updateConnectionStatus(false, "Device not found")
+//            return
+//        }
+//
+//        bluetoothGatt?.close()
+//        bluetoothGatt = device.connectGatt(this, false, gattCallback)
+//        toast("Connecting to BLE device...")
+//        homeViewModel.updateConnectionStatus(false, "Connecting...")
+//    }
+//
+//    private val gattCallback = object : BluetoothGattCallback() {
+//        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+//            when (newState) {
+//                BluetoothProfile.STATE_CONNECTED -> {
+//                    retryCount = 0
+//                    runOnUiThread {
+//                        toast("Connected to BLE")
+//                        homeViewModel.updateConnectionStatus(true, "Connected - Discovering services...")
+//                    }
+//                    gatt?.discoverServices()
+//                }
+//                BluetoothProfile.STATE_DISCONNECTED -> {
+//                    runOnUiThread {
+//                        toast("BLE disconnected")
+//                        homeViewModel.updateConnectionStatus(false, "Disconnected - Retrying...")
+//                    }
+//                    bluetoothGatt?.close()
+//                    bluetoothGatt = null
+//                    if (retryCount++ < maxRetries) {
+//                        Handler(Looper.getMainLooper()).postDelayed({ connectToBLE() }, reconnectDelay)
+//                    } else {
+//                        runOnUiThread {
+//                            toast("Connection failed")
+//                            homeViewModel.updateConnectionStatus(false, "Connection failed - Using simulation")
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+//            val charac = gatt?.getService(serviceUUID)?.getCharacteristic(characteristicUUID)
+//            if (charac != null) {
+//                gatt.setCharacteristicNotification(charac, true)
+//                val descriptor = charac.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+//                descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+//                gatt.writeDescriptor(descriptor)
+//                runOnUiThread {
+//                    toast("BLE ready")
+//                    homeViewModel.updateConnectionStatus(true, "Connected - Ready for data")
+//                }
+//            } else {
+//                runOnUiThread {
+//                    toast("BLE service not found")
+//                    homeViewModel.updateConnectionStatus(false, "Service not found")
+//                }
+//            }
+//        }
+//
+//        override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
+//            val value = characteristic?.getStringValue(0)
+//            value?.let { handleSensorData(it) }
+//        }
+//    }
+//
+//    private fun handleSensorData(line: String) {
+//        val parts = line.split(",")
+//        println("Sensor data: $line")
+//
+//        if (parts.size >= 3) {
+//            try {
+//                val heartRate = parts[1].trim().toIntOrNull() ?: return
+//                val spo2 = parts[2].trim().toIntOrNull() ?: return
+//
+//                if (heartRate in 30..200 && spo2 in 70..100) {
+//                    runOnUiThread {
+//                        homeViewModel.updateSensorData(heartRate, spo2)
+//                    }
+//
+//                    val vitals = Vitals(heartRate, spo2)
+//                    val result = AsthmaDetector.detect(vitals)
+//
+//                    runOnUiThread {
+//                        val statusText = when (result) {
+//                            AsthmaLevel.SEVERE -> "⚠️ Asthma SEVERE detected! BPM: $heartRate, SpO₂: $spo2%"
+//                            AsthmaLevel.MODERATE -> "⚠️ Asthma MODERATE detected! BPM: $heartRate, SpO₂: $spo2%"
+//                            AsthmaLevel.NORMAL -> "✅ Normal condition - BPM: $heartRate, SpO₂: $spo2%"
+//                        }
+//                        if (result != AsthmaLevel.NORMAL) {
+//                            Toast.makeText(this@MainActivity, statusText, Toast.LENGTH_LONG).show()
+//                        }
+//                    }
+//                }
+//            } catch (e: Exception) {
+//                println("Error parsing sensor data: ${e.message}")
+//            }
+//        }
+//    }
+//
+//    private fun toast(msg: String) {
+//        runOnUiThread {
+//            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+//        }
+//    }
+//
+//    override fun onDestroy() {
+//        bluetoothGatt?.close()
+//        bluetoothGatt = null
+//        super.onDestroy()
+//    }
+//}
+//package com.example.percobaan6
+//
+//import android.Manifest
+//import android.bluetooth.*
+//import android.content.pm.PackageManager
+//import android.os.*
+//import android.widget.Toast
+//import androidx.activity.result.contract.ActivityResultContracts
+//import androidx.appcompat.app.AppCompatActivity
+//import androidx.core.app.ActivityCompat
+//import androidx.navigation.findNavController
+//import androidx.navigation.ui.AppBarConfiguration
+//import androidx.navigation.ui.setupWithNavController
+//import com.example.percobaan6.databinding.ActivityMainBinding
+//import com.example.percobaan6.ui.home.HomeViewModel
+//import androidx.lifecycle.ViewModelProvider
+//import androidx.navigation.NavController
+//import com.google.android.material.bottomnavigation.BottomNavigationView
+//import java.util.*
+//
+//class MainActivity : AppCompatActivity() {
+//
+//    private lateinit var binding: ActivityMainBinding
+//    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+//    private val deviceAddress = "8C:4F:00:3C:99:CE" // Ganti MAC ESP32
+//    private val serviceUUID = UUID.fromString("12345678-1234-1234-1234-1234567890ab")
+//    private val characteristicUUID = UUID.fromString("abcd1234-ab12-cd34-ef56-abcdef123456")
+//    private var bluetoothGatt: BluetoothGatt? = null
+//
+//    private val phoneNumber = "+6281234567890"
+//    private var retryCount = 0
+//    private val maxRetries = 5
+//    private val reconnectDelay = 3000L
+//
+//    // Add reference to HomeViewModel to pass sensor data
+//    private lateinit var homeViewModel: HomeViewModel
+//    private lateinit var navController: NavController
+//
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//
+//        binding = ActivityMainBinding.inflate(layoutInflater)
+//        setContentView(binding.root)
+//
+//        val navView: BottomNavigationView = binding.navView
+//        navController = findNavController(R.id.nav_host_fragment_activity_main)
+//        val appBarConfiguration = AppBarConfiguration(
+//            setOf(
+//                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications, R.id.navigation_history
+//            )
+//        )
+//        navView.setupWithNavController(navController)
+//
+//        // Initialize ViewModel
+//        homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
+//
+//        // Initialize BLE connection
+//        requestBluetoothPermissions {
+//            toast("Permission granted, connecting to BLE...")
+//            connectToBLE()
+//        }
+//    }
+//
+//    private fun requestBluetoothPermissions(onGranted: () -> Unit) {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+//            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+//        ) {
+//            val permissionLauncher =
+//                registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+//                    if (permissions.all { it.value }) {
+//                        onGranted()
+//                    } else {
+//                        toast("Bluetooth permission denied")
+//                        // Update ViewModel about connection failure
+//                        homeViewModel.updateConnectionStatus(false, "Bluetooth permission denied")
+//                    }
+//                }
+//
+//            permissionLauncher.launch(
+//                arrayOf(
+//                    Manifest.permission.BLUETOOTH_CONNECT,
+//                    Manifest.permission.BLUETOOTH_SCAN,
+//                    Manifest.permission.ACCESS_FINE_LOCATION
+//                )
+//            )
+//        } else {
+//            onGranted()
+//        }
+//    }
+//
+//    private fun connectToBLE() {
+//        val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
+//        if (device == null) {
+//            toast("Device not found")
+//            homeViewModel.updateConnectionStatus(false, "Device not found")
+//            return
+//        }
+//
+//        bluetoothGatt?.close()
+//        bluetoothGatt = device.connectGatt(this, false, gattCallback)
+//        toast("Connecting to BLE device...")
+//        homeViewModel.updateConnectionStatus(false, "Connecting to BLE device...")
+//    }
+//
+//    private val gattCallback = object : BluetoothGattCallback() {
+//        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+//            when (newState) {
+//                BluetoothProfile.STATE_CONNECTED -> {
+//                    retryCount = 0
+//                    runOnUiThread {
+//                        toast("Connected to BLE, discovering services...")
+//                        homeViewModel.updateConnectionStatus(true, "Connected - Discovering services...")
+//                    }
+//                    gatt?.discoverServices()
+//                }
+//                BluetoothProfile.STATE_DISCONNECTED -> {
+//                    runOnUiThread {
+//                        toast("BLE disconnected. Retrying...")
+//                        homeViewModel.updateConnectionStatus(false, "BLE disconnected - Retrying...")
+//                    }
+//                    bluetoothGatt?.close()
+//                    bluetoothGatt = null
+//                    if (retryCount++ < maxRetries) {
+//                        Handler(Looper.getMainLooper()).postDelayed({ connectToBLE() }, reconnectDelay)
+//                    } else {
+//                        runOnUiThread {
+//                            toast("Failed to reconnect after $maxRetries attempts")
+//                            homeViewModel.updateConnectionStatus(false, "Connection failed - Using simulation")
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+//            val charac = gatt?.getService(serviceUUID)?.getCharacteristic(characteristicUUID)
+//            if (charac != null) {
+//                gatt.setCharacteristicNotification(charac, true)
+//                val descriptor = charac.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+//                descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+//                gatt.writeDescriptor(descriptor)
+//                runOnUiThread {
+//                    toast("BLE notifications enabled")
+//                    homeViewModel.updateConnectionStatus(true, "Connected - Receiving sensor data")
+//                }
+//            } else {
+//                runOnUiThread {
+//                    toast("BLE characteristic not found")
+//                    homeViewModel.updateConnectionStatus(false, "BLE characteristic not found")
+//                }
+//            }
+//        }
+//
+//        override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
+//            val value = characteristic?.getStringValue(0)
+//            value?.let { handleSensorData(it) }
+//        }
+//    }
+//
+//    private fun handleSensorData(line: String) {
+//        val parts = line.split(",")
+//        println("Incoming data: $line")
+//
+//        if (parts.size == 4) {
+//            try {
+//                val heartRate = parts[1].toInt()
+//                val spo2 = parts[2].toInt()
+//
+//                val vitals = Vitals(heartRate, spo2)
+//                val measurement = Measurement(
+//                    vitals.bpm, 80,
+//                    vitals.spo2, 95
+//                )
+//
+//                if (!measurement.isValid()) {
+//                    alert("Invalid data! BPM Error: %.2f%%, SpO₂ Error: %.2f%%".format(
+//                        measurement.bpmError(), measurement.spo2Error()
+//                    ))
+//                    return
+//                }
+//
+//                // Update HomeViewModel with real sensor data
+//                runOnUiThread {
+//                    homeViewModel.updateSensorData(heartRate, spo2)
+//                }
+//
+//                val result = AsthmaDetector.detect(vitals)
+//
+//                runOnUiThread {
+//                    val statusText = when (result) {
+//                        AsthmaLevel.SEVERE, AsthmaLevel.MODERATE -> {
+//                            println("Buzzer ON")
+//                            "⚠️ Asthma ${result.name.lowercase()} detected!"
+//                        }
+//                        AsthmaLevel.NORMAL -> {
+//                            alert("Normal condition. BPM: ${vitals.bpm}, SpO₂: ${vitals.spo2}%")
+//                            "✅ Normal condition"
+//                        }
+//                    }
+//                    Toast.makeText(this@MainActivity, statusText, Toast.LENGTH_LONG).show()
+//                }
+//            } catch (e: Exception) {
+//                println("Error parsing BLE data: ${e.message}")
+//                runOnUiThread {
+//                    homeViewModel.updateConnectionStatus(false, "Error parsing sensor data")
+//                }
+//            }
+//        }
+//    }
+//
+//    private fun alert(msg: String) {
+//        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+//    }
+//
+//    private fun toast(msg: String) {
+//        runOnUiThread {
+//            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+//        }
+//    }
+//
+//    override fun onDestroy() {
+//        bluetoothGatt?.close()
+//        bluetoothGatt = null
+//        super.onDestroy()
+//    }
+//}
 //package com.example.percobaan4.ui.home
 //
 //
