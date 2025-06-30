@@ -29,38 +29,46 @@ class HomeViewModel : ViewModel() {
     }
     val connectionStatus: LiveData<String> = _connectionStatus
 
-    private val _heartRateHistory = MutableLiveData<List<Float>>().apply {
-        value = mutableListOf()
-    }
-    val heartRateHistory: LiveData<List<Float>> = _heartRateHistory
-
-    private val _spo2History = MutableLiveData<List<Float>>().apply {
-        value = mutableListOf()
-    }
-    val spo2History: LiveData<List<Float>> = _spo2History
-
-    private val maxHistoryPoints = 20
-
-    // --- LIVE DATA BARU UNTUK HISTORY ---
-    private val _dailyHealthHistory = MutableLiveData<List<DailyHealthRecord>>().apply {
-        // Inisialisasi dengan data hari ini yang kosong
-        val todayRecord = DailyHealthRecord(
-            date = "Today",
-            heartRate = HealthParameter("-", "-", "-", "-"),
-            oxygenLevel = HealthParameter("-", "-", "-", "-"),
-            breathRate = HealthParameter("-", "-", "-", "-")
-        )
-        value = listOf(todayRecord)
-    }
+    private val _dailyHealthHistory = MutableLiveData<List<DailyHealthRecord>>()
     val dailyHealthHistory: LiveData<List<DailyHealthRecord>> = _dailyHealthHistory
-    // ------------------------------------
+
+    // Inisialisasi riwayat saat ViewModel dibuat
+    init {
+        initializeDailyHistory()
+    }
+
+    private fun initializeDailyHistory() {
+        val healthRecords = mutableListOf<DailyHealthRecord>()
+        val calendar = Calendar.getInstance()
+        val dayFormat = SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
+
+        for (i in 0 until 7) {
+            val dateString = when (i) {
+                0 -> "Today"
+                1 -> "Yesterday"
+                else -> dayFormat.format(calendar.time)
+            }
+
+            val emptyRecord = DailyHealthRecord(
+                date = dateString,
+                heartRate = HealthParameter("-", "-", "-", "-"),
+                oxygenLevel = HealthParameter("-", "-", "-", "-"),
+                breathRate = HealthParameter("-", "-", "-", "-") // Tetap ada untuk masa depan
+            )
+            healthRecords.add(emptyRecord)
+
+            // Mundur satu hari untuk iterasi berikutnya
+            calendar.add(Calendar.DAY_OF_YEAR, -1)
+        }
+        _dailyHealthHistory.value = healthRecords
+    }
 
     fun updateSensorData(heartRate: Int, spo2: Int) {
         val realData = RealTimeHealthData(
             timestamp = System.currentTimeMillis(),
             heartRate = heartRate.toFloat(),
             spo2 = spo2.toFloat(),
-            breathRate = 16f, // Masih menggunakan nilai statis untuk saat ini
+            breathRate = 16f,
             skinTemperature = 36.5f,
             eda = 8f
         )
@@ -69,7 +77,6 @@ class HomeViewModel : ViewModel() {
         _isConnected.postValue(true)
         _connectionStatus.postValue("Connected - Receiving real sensor data")
 
-        updateHistoryData(realData)
         analyzeHealthData(realData)
         updateDailyHealthRecord(realData)
     }
@@ -77,29 +84,10 @@ class HomeViewModel : ViewModel() {
     fun updateConnectionStatus(isConnected: Boolean, message: String) {
         _isConnected.value = isConnected
         _connectionStatus.value = message
-
         if (!isConnected) {
             _currentHealthData.value = null
-            _heartRateHistory.value = mutableListOf()
-            _spo2History.value = mutableListOf()
             _healthAlerts.value = emptyList()
         }
-    }
-
-    private fun updateHistoryData(data: RealTimeHealthData) {
-        val heartRateList = _heartRateHistory.value?.toMutableList() ?: mutableListOf()
-        heartRateList.add(data.heartRate)
-        if (heartRateList.size > maxHistoryPoints) {
-            heartRateList.removeAt(0)
-        }
-        _heartRateHistory.value = heartRateList
-
-        val spo2List = _spo2History.value?.toMutableList() ?: mutableListOf()
-        spo2List.add(data.spo2)
-        if (spo2List.size > maxHistoryPoints) {
-            spo2List.removeAt(0)
-        }
-        _spo2History.value = spo2List
     }
 
     private fun analyzeHealthData(data: RealTimeHealthData) {
@@ -109,47 +97,189 @@ class HomeViewModel : ViewModel() {
         _healthAlerts.value = alerts
     }
 
-    // --- FUNGSI BARU UNTUK MENGELOLA RIWAYAT HARIAN ---
     private fun updateDailyHealthRecord(data: RealTimeHealthData) {
-        val currentHistory = _dailyHealthHistory.value?.toMutableList() ?: mutableListOf()
+        val currentHistory = _dailyHealthHistory.value?.toMutableList() ?: return
         val todayRecord = currentHistory.firstOrNull { it.date == "Today" }
 
         if (todayRecord != null) {
-            val hrParam = todayRecord.heartRate
-            val newHrMin = if (hrParam.min == "-" || data.heartRate < (hrParam.min.toFloatOrNull() ?: Float.MAX_VALUE)) data.heartRate.toInt().toString() else hrParam.min
-            val newHrMax = if (hrParam.max == "-" || data.heartRate > (hrParam.max.toFloatOrNull() ?: Float.MIN_VALUE)) data.heartRate.toInt().toString() else hrParam.max
+            val recordIndex = currentHistory.indexOf(todayRecord)
 
-            val spo2Param = todayRecord.oxygenLevel
-            val newSpo2Min = if (spo2Param.min == "-" || data.spo2 < (spo2Param.min.toFloatOrNull() ?: Float.MAX_VALUE)) data.spo2.toInt().toString() else spo2Param.min
-            val newSpo2Max = if (spo2Param.max == "-" || data.spo2 > (spo2Param.max.toFloatOrNull() ?: Float.MIN_VALUE)) data.spo2.toInt().toString() else spo2Param.max
+            // Fungsi helper untuk membandingkan nilai
+            fun getNewMin(current: String, new: Float): String {
+                return if (current == "-" || new < (current.toFloatOrNull() ?: Float.MAX_VALUE)) new.toInt().toString() else current
+            }
+            fun getNewMax(current: String, new: Float): String {
+                return if (current == "-" || new > (current.toFloatOrNull() ?: Float.MIN_VALUE)) new.toInt().toString() else current
+            }
 
             val updatedRecord = todayRecord.copy(
-                heartRate = todayRecord.heartRate.copy(min = newHrMin, max = newHrMax),
-                oxygenLevel = todayRecord.oxygenLevel.copy(min = newSpo2Min, max = newSpo2Max)
+                heartRate = todayRecord.heartRate.copy(
+                    min = getNewMin(todayRecord.heartRate.min, data.heartRate),
+                    max = getNewMax(todayRecord.heartRate.max, data.heartRate)
+                ),
+                oxygenLevel = todayRecord.oxygenLevel.copy(
+                    min = getNewMin(todayRecord.oxygenLevel.min, data.spo2),
+                    max = getNewMax(todayRecord.oxygenLevel.max, data.spo2)
+                )
             )
 
-            val recordIndex = currentHistory.indexOf(todayRecord)
             currentHistory[recordIndex] = updatedRecord
-
             _dailyHealthHistory.postValue(currentHistory)
         }
     }
-    // ----------------------------------------------------
-
-    fun getCurrentHealthSummary(): String {
-        val data = _currentHealthData.value ?: return "No data available"
-        val alerts = _healthAlerts.value ?: return "No alerts"
-
-        val criticalAlerts = alerts.filter { it.status == AlertLevel.CRITICAL }
-        val warningAlerts = alerts.filter { it.status == AlertLevel.WARNING }
-
-        return when {
-            criticalAlerts.isNotEmpty() -> "Critical: ${criticalAlerts.size} alert(s)"
-            warningAlerts.isNotEmpty() -> "Warning: ${warningAlerts.size} alert(s)"
-            else -> "All parameters normal"
-        }
-    }
 }
+//package com.example.percobaan6.ui.home HAMPIR BENERRRRRRRRRRRRRRRR
+//
+//import androidx.lifecycle.LiveData
+//import androidx.lifecycle.MutableLiveData
+//import androidx.lifecycle.ViewModel
+//import com.example.percobaan6.ui.history.*
+//import java.text.SimpleDateFormat
+//import java.util.*
+//
+//class HomeViewModel : ViewModel() {
+//    private val _text = MutableLiveData<String>().apply {
+//        value = "Real-time Health Monitor"
+//    }
+//    val text: LiveData<String> = _text
+//
+//    private val _currentHealthData = MutableLiveData<RealTimeHealthData?>()
+//    val currentHealthData: LiveData<RealTimeHealthData?> = _currentHealthData
+//
+//    private val _healthAlerts = MutableLiveData<List<HealthStatus>>()
+//    val healthAlerts: LiveData<List<HealthStatus>> = _healthAlerts
+//
+//    private val _isConnected = MutableLiveData<Boolean>().apply {
+//        value = false
+//    }
+//    val isConnected: LiveData<Boolean> = _isConnected
+//
+//    private val _connectionStatus = MutableLiveData<String>().apply {
+//        value = "Not connected - waiting for sensor..."
+//    }
+//    val connectionStatus: LiveData<String> = _connectionStatus
+//
+//    private val _heartRateHistory = MutableLiveData<List<Float>>().apply {
+//        value = mutableListOf()
+//    }
+//    val heartRateHistory: LiveData<List<Float>> = _heartRateHistory
+//
+//    private val _spo2History = MutableLiveData<List<Float>>().apply {
+//        value = mutableListOf()
+//    }
+//    val spo2History: LiveData<List<Float>> = _spo2History
+//
+//    private val maxHistoryPoints = 20
+//
+//    // --- LIVE DATA BARU UNTUK HISTORY ---
+//    private val _dailyHealthHistory = MutableLiveData<List<DailyHealthRecord>>().apply {
+//        // Inisialisasi dengan data hari ini yang kosong
+//        val todayRecord = DailyHealthRecord(
+//            date = "Today",
+//            heartRate = HealthParameter("-", "-", "-", "-"),
+//            oxygenLevel = HealthParameter("-", "-", "-", "-"),
+//            breathRate = HealthParameter("-", "-", "-", "-")
+//        )
+//        value = listOf(todayRecord)
+//    }
+//    val dailyHealthHistory: LiveData<List<DailyHealthRecord>> = _dailyHealthHistory
+//    // ------------------------------------
+//
+//    fun updateSensorData(heartRate: Int, spo2: Int) {
+//        val realData = RealTimeHealthData(
+//            timestamp = System.currentTimeMillis(),
+//            heartRate = heartRate.toFloat(),
+//            spo2 = spo2.toFloat(),
+//            breathRate = 16f, // Masih menggunakan nilai statis untuk saat ini
+//            skinTemperature = 36.5f,
+//            eda = 8f
+//        )
+//
+//        _currentHealthData.postValue(realData)
+//        _isConnected.postValue(true)
+//        _connectionStatus.postValue("Connected - Receiving real sensor data")
+//
+//        updateHistoryData(realData)
+//        analyzeHealthData(realData)
+//        updateDailyHealthRecord(realData)
+//    }
+//
+//    fun updateConnectionStatus(isConnected: Boolean, message: String) {
+//        _isConnected.value = isConnected
+//        _connectionStatus.value = message
+//
+//        if (!isConnected) {
+//            _currentHealthData.value = null
+//            _heartRateHistory.value = mutableListOf()
+//            _spo2History.value = mutableListOf()
+//            _healthAlerts.value = emptyList()
+//        }
+//    }
+//
+//    private fun updateHistoryData(data: RealTimeHealthData) {
+//        val heartRateList = _heartRateHistory.value?.toMutableList() ?: mutableListOf()
+//        heartRateList.add(data.heartRate)
+//        if (heartRateList.size > maxHistoryPoints) {
+//            heartRateList.removeAt(0)
+//        }
+//        _heartRateHistory.value = heartRateList
+//
+//        val spo2List = _spo2History.value?.toMutableList() ?: mutableListOf()
+//        spo2List.add(data.spo2)
+//        if (spo2List.size > maxHistoryPoints) {
+//            spo2List.removeAt(0)
+//        }
+//        _spo2History.value = spo2List
+//    }
+//
+//    private fun analyzeHealthData(data: RealTimeHealthData) {
+//        val alerts = mutableListOf<HealthStatus>()
+//        alerts.add(data.analyzeHeartRate())
+//        alerts.add(data.analyzeSPO2())
+//        _healthAlerts.value = alerts
+//    }
+//
+//    // --- FUNGSI BARU UNTUK MENGELOLA RIWAYAT HARIAN ---
+//    private fun updateDailyHealthRecord(data: RealTimeHealthData) {
+//        val currentHistory = _dailyHealthHistory.value?.toMutableList() ?: mutableListOf()
+//        val todayRecord = currentHistory.firstOrNull { it.date == "Today" }
+//
+//        if (todayRecord != null) {
+//            val hrParam = todayRecord.heartRate
+//            val newHrMin = if (hrParam.min == "-" || data.heartRate < (hrParam.min.toFloatOrNull() ?: Float.MAX_VALUE)) data.heartRate.toInt().toString() else hrParam.min
+//            val newHrMax = if (hrParam.max == "-" || data.heartRate > (hrParam.max.toFloatOrNull() ?: Float.MIN_VALUE)) data.heartRate.toInt().toString() else hrParam.max
+//
+//            val spo2Param = todayRecord.oxygenLevel
+//            val newSpo2Min = if (spo2Param.min == "-" || data.spo2 < (spo2Param.min.toFloatOrNull() ?: Float.MAX_VALUE)) data.spo2.toInt().toString() else spo2Param.min
+//            val newSpo2Max = if (spo2Param.max == "-" || data.spo2 > (spo2Param.max.toFloatOrNull() ?: Float.MIN_VALUE)) data.spo2.toInt().toString() else spo2Param.max
+//
+//            val updatedRecord = todayRecord.copy(
+//                heartRate = todayRecord.heartRate.copy(min = newHrMin, max = newHrMax),
+//                oxygenLevel = todayRecord.oxygenLevel.copy(min = newSpo2Min, max = newSpo2Max)
+//            )
+//
+//            val recordIndex = currentHistory.indexOf(todayRecord)
+//            currentHistory[recordIndex] = updatedRecord
+//
+//            _dailyHealthHistory.postValue(currentHistory)
+//        }
+//    }
+//    // ----------------------------------------------------
+//
+//    fun getCurrentHealthSummary(): String {
+//        val data = _currentHealthData.value ?: return "No data available"
+//        val alerts = _healthAlerts.value ?: return "No alerts"
+//
+//        val criticalAlerts = alerts.filter { it.status == AlertLevel.CRITICAL }
+//        val warningAlerts = alerts.filter { it.status == AlertLevel.WARNING }
+//
+//        return when {
+//            criticalAlerts.isNotEmpty() -> "Critical: ${criticalAlerts.size} alert(s)"
+//            warningAlerts.isNotEmpty() -> "Warning: ${warningAlerts.size} alert(s)"
+//            else -> "All parameters normal"
+//        }
+//    }
+//}
 //package com.example.percobaan6.ui.home NIERRRRRRR
 //
 //import androidx.lifecycle.LiveData

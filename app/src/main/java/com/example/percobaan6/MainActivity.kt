@@ -33,7 +33,7 @@ import kotlin.coroutines.resume
 import com.example.percobaan6.ui.history.AlertLevel
 import com.example.percobaan6.ui.notifications.NotificationsViewModel
 
-// ... (Class SoundPlayer, LocationManager, PhoneAndSmsManager tetap sama)
+// Class SoundPlayer, LocationManager, PhoneAndSmsManager tidak berubah
 class SoundPlayer(private val context: Context) {
     private var mediaPlayer: MediaPlayer? = null
     private val audioManager: AudioManager =
@@ -161,6 +161,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var notificationsViewModel: NotificationsViewModel
     private lateinit var navController: NavController
 
+    // --- ▼▼▼ TAMBAHAN BARU ▼▼▼ ---
+    // Variabel untuk menyimpan waktu terakhir data diproses
+    private var lastProcessTime: Long = 0
+    // --- ▲▲▲ AKHIR TAMBAHAN ▲▲▲ ---
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -176,17 +181,14 @@ class MainActivity : AppCompatActivity() {
         )
         navView.setupWithNavController(navController)
 
-        // Initialize ViewModels dengan scope Activity
         homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
         notificationsViewModel = ViewModelProvider(this).get(NotificationsViewModel::class.java)
 
-        // Initialize BLE connection
         requestBluetoothPermissions {
             toast("Permission granted, connecting to BLE...")
             connectToBLE()
         }
 
-        // Mulai mengamati peringatan kesehatan
         observeHealthAlerts()
     }
 
@@ -202,7 +204,6 @@ class MainActivity : AppCompatActivity() {
                 notificationsViewModel.addNotification(alert)
             }
 
-            // Update a set of recent alert messages to avoid spamming
             lastNotifiedAlerts = alerts.map { it.message }.toSet()
         }
     }
@@ -303,35 +304,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleSensorData(line: String) {
-        val parts = line.split(",")
-        println("Incoming data: $line")
+        // --- ▼▼▼ PERUBAHAN UTAMA DI SINI ▼▼▼ ---
+        // Throttling: Hanya proses data jika sudah 1 detik (1000ms) berlalu
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastProcessTime < 1000) {
+            return // Abaikan data jika belum 1 detik
+        }
+        lastProcessTime = currentTime // Update waktu terakhir proses
+        // --- ▲▲▲ AKHIR DARI PERUBAHAN ▲▲▲ ---
 
-        if (parts.size >= 3) { // Ukuran data disesuaikan, misal format: "TYPE,BPM,SPO2"
+        val parts = line.split(",")
+        // Tidak perlu lagi print setiap data yang masuk, agar log tidak banjir
+        // println("Incoming data: $line")
+
+        if (parts.size >= 3) {
             try {
                 val heartRate = parts[1].trim().toInt()
                 val spo2 = parts[2].trim().toInt()
-
-                val vitals = Vitals(heartRate, spo2)
 
                 // Update HomeViewModel dengan data sensor riil
                 runOnUiThread {
                     homeViewModel.updateSensorData(heartRate, spo2)
                 }
 
+                val vitals = Vitals(heartRate, spo2)
                 val result = AsthmaDetector.detect(vitals)
 
+                // Logika Toast ini bisa dihilangkan jika tidak dibutuhkan lagi
                 runOnUiThread {
-                    val statusText = when (result) {
+                    when (result) {
                         AsthmaLevel.SEVERE, AsthmaLevel.MODERATE -> {
-                            println("Buzzer ON")
-                            "⚠️ Asthma ${result.name.lowercase()} detected!"
+                            println("Asthma condition detected: ${result.name}")
                         }
-                        AsthmaLevel.NORMAL -> {
-                            "✅ Normal condition"
+                        else -> {
+                            // Tidak perlu melakukan apa-apa untuk kondisi normal
                         }
                     }
-                    // Toast ini bisa dihilangkan jika notifikasi sudah muncul di halaman Notifikasi
-                    // Toast.makeText(this@MainActivity, statusText, Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 println("Error parsing BLE data: ${e.message}")
@@ -358,6 +366,366 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
+//package com.example.percobaan6 HAMPIRR BENERRRRRRRRRRRRR
+//
+//import android.Manifest
+//import android.bluetooth.*
+//import android.content.Context
+//import android.content.pm.PackageManager
+//import android.location.Location
+//import android.location.LocationManager
+//import android.os.*
+//import android.widget.Toast
+//import androidx.activity.result.contract.ActivityResultContracts
+//import androidx.appcompat.app.AppCompatActivity
+//import androidx.core.app.ActivityCompat
+//import androidx.navigation.findNavController
+//import androidx.navigation.ui.AppBarConfiguration
+//import androidx.navigation.ui.setupWithNavController
+//import com.example.percobaan6.databinding.ActivityMainBinding
+//import com.example.percobaan6.ui.home.HomeViewModel
+//import androidx.lifecycle.ViewModelProvider
+//import androidx.navigation.NavController
+//import com.google.android.material.bottomnavigation.BottomNavigationView
+//import java.util.*
+//import android.media.AudioManager
+//import android.media.MediaPlayer
+//import android.net.Uri
+//import android.telephony.SmsManager
+//import androidx.core.content.ContextCompat
+//import com.google.android.gms.location.FusedLocationProviderClient
+//import kotlinx.coroutines.suspendCancellableCoroutine
+//import java.net.URLEncoder
+//import java.nio.charset.StandardCharsets
+//import kotlin.coroutines.resume
+//import com.example.percobaan6.ui.history.AlertLevel
+//import com.example.percobaan6.ui.notifications.NotificationsViewModel
+//
+//// ... (Class SoundPlayer, LocationManager, PhoneAndSmsManager tetap sama)
+//class SoundPlayer(private val context: Context) {
+//    private var mediaPlayer: MediaPlayer? = null
+//    private val audioManager: AudioManager =
+//        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+//
+//    fun setMaxVolume() {
+//        audioManager.setStreamVolume(
+//            AudioManager.STREAM_MUSIC,
+//            audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+//            0
+//        )
+//    }
+//
+//    fun playSound(rawResId: Int) {
+//        stopSound()
+//        mediaPlayer = MediaPlayer.create(context, rawResId)
+//        mediaPlayer?.setOnCompletionListener{ mp ->
+//            mp.release()
+//            mediaPlayer = null
+//        }
+//        mediaPlayer?.setOnErrorListener{ mp, what, extra ->
+//            mp.release()
+//            mediaPlayer = null
+//            false
+//        }
+//        mediaPlayer?.start()
+//    }
+//
+//    fun stopSound() {
+//        mediaPlayer?.apply {
+//            if (isPlaying) {
+//                stop()
+//            }
+//            release()
+//        }
+//        mediaPlayer = null
+//    }
+//
+//    fun release() {
+//        stopSound()
+//    }
+//}
+//
+//class LocationManager(
+//    private val context: Context,
+//    private val fusedLocationProviderClient: FusedLocationProviderClient
+//) {
+//    suspend fun getLocation(): Location? {
+//        val hasGrantedFineLocationPermission = ContextCompat.checkSelfPermission(
+//            context,
+//            android.Manifest.permission.ACCESS_FINE_LOCATION
+//        ) == PackageManager.PERMISSION_GRANTED
+//        val hasGrantedCoarseLocationPermission = ContextCompat.checkSelfPermission(
+//            context,
+//            android.Manifest.permission.ACCESS_COARSE_LOCATION
+//        ) == PackageManager.PERMISSION_GRANTED
+//
+//        val systemLocationManager = context.getSystemService(
+//            Context.LOCATION_SERVICE
+//        ) as LocationManager
+//
+//        val isGpsEnabled = systemLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ||
+//                systemLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+//
+//        if (!isGpsEnabled && !(hasGrantedCoarseLocationPermission || hasGrantedFineLocationPermission)) {
+//            return null
+//        }
+//
+//        return suspendCancellableCoroutine{ cont ->
+//            fusedLocationProviderClient.lastLocation.apply{
+//                if (isComplete) {
+//                    if (isSuccessful) {
+//                        cont.resume(result)
+//                    } else {
+//                        cont.resume(null)
+//                    }
+//                    return@suspendCancellableCoroutine
+//                }
+//                addOnSuccessListener {
+//                    cont.resume(result)
+//                }
+//                addOnFailureListener {
+//                    cont.resume(null)
+//                }
+//                addOnCanceledListener{
+//                    cont.cancel()
+//                }
+//            }
+//        }
+//    }
+//}
+//
+//class PhoneAndSmsManager(private val context: Context) {
+//    fun sendSms(phoneNumber: String, message: String) {
+//        if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+//            try {
+//                val smsManager: SmsManager = context.getSystemService(SmsManager::class.java)
+//                smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+//                Toast.makeText(context, "SMS sent automatically to $phoneNumber", Toast.LENGTH_SHORT).show()
+//            } catch (e: Exception) {
+//                Toast.makeText(context, "Failed to send SMS automatically: ${e.message}", Toast.LENGTH_LONG).show()
+//                e.printStackTrace()
+//            }
+//        } else {
+//            Toast.makeText(context, "SMS permission not granted. Cannot send automatically.", Toast.LENGTH_LONG).show()
+//        }
+//    }
+//}
+//
+//
+//class MainActivity : AppCompatActivity() {
+//
+//    private lateinit var binding: ActivityMainBinding
+//    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+//    private val deviceAddress = "44:1D:64:F7:A5:9A" // Ganti MAC ESP32
+//    private val serviceUUID = UUID.fromString("12345678-1234-1234-1234-1234567890ab")
+//    private val characteristicUUID = UUID.fromString("abcd1234-ab12-cd34-ef56-abcdef123456")
+//    private var bluetoothGatt: BluetoothGatt? = null
+//
+//    private var retryCount = 0
+//    private val maxRetries = 10
+//    private val reconnectDelay = 3000L
+//
+//    private lateinit var homeViewModel: HomeViewModel
+//    private lateinit var notificationsViewModel: NotificationsViewModel
+//    private lateinit var navController: NavController
+//
+//    override fun onCreate(savedInstanceState: Bundle?) {
+//        super.onCreate(savedInstanceState)
+//
+//        binding = ActivityMainBinding.inflate(layoutInflater)
+//        setContentView(binding.root)
+//
+//        val navView: BottomNavigationView = binding.navView
+//        navController = findNavController(R.id.nav_host_fragment_activity_main)
+//        val appBarConfiguration = AppBarConfiguration(
+//            setOf(
+//                R.id.navigation_home, R.id.navigation_dashboard, R.id.navigation_notifications, R.id.navigation_history
+//            )
+//        )
+//        navView.setupWithNavController(navController)
+//
+//        // Initialize ViewModels dengan scope Activity
+//        homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
+//        notificationsViewModel = ViewModelProvider(this).get(NotificationsViewModel::class.java)
+//
+//        // Initialize BLE connection
+//        requestBluetoothPermissions {
+//            toast("Permission granted, connecting to BLE...")
+//            connectToBLE()
+//        }
+//
+//        // Mulai mengamati peringatan kesehatan
+//        observeHealthAlerts()
+//    }
+//
+//    private fun observeHealthAlerts() {
+//        var lastNotifiedAlerts = setOf<String>()
+//
+//        homeViewModel.healthAlerts.observe(this) { alerts ->
+//            val newAlerts = alerts.filter {
+//                (it.status == AlertLevel.WARNING || it.status == AlertLevel.CRITICAL) && !lastNotifiedAlerts.contains(it.message)
+//            }
+//
+//            newAlerts.forEach { alert ->
+//                notificationsViewModel.addNotification(alert)
+//            }
+//
+//            // Update a set of recent alert messages to avoid spamming
+//            lastNotifiedAlerts = alerts.map { it.message }.toSet()
+//        }
+//    }
+//
+//    private fun requestBluetoothPermissions(onGranted: () -> Unit) {
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+//            ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED
+//        ) {
+//            val permissionLauncher =
+//                registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+//                    if (permissions.all { it.value }) {
+//                        onGranted()
+//                    } else {
+//                        toast("Bluetooth permission denied")
+//                        homeViewModel.updateConnectionStatus(false, "Bluetooth permission denied")
+//                    }
+//                }
+//
+//            permissionLauncher.launch(
+//                arrayOf(
+//                    Manifest.permission.BLUETOOTH_CONNECT,
+//                    Manifest.permission.BLUETOOTH_SCAN,
+//                    Manifest.permission.ACCESS_FINE_LOCATION
+//                )
+//            )
+//        } else {
+//            onGranted()
+//        }
+//    }
+//
+//    private fun connectToBLE() {
+//        val device = bluetoothAdapter?.getRemoteDevice(deviceAddress)
+//        if (device == null) {
+//            toast("Device not found")
+//            homeViewModel.updateConnectionStatus(false, "Device not found")
+//            return
+//        }
+//
+//        bluetoothGatt?.close()
+//        bluetoothGatt = device.connectGatt(this, false, gattCallback)
+//        toast("Connecting to BLE device...")
+//        homeViewModel.updateConnectionStatus(false, "Connecting to BLE device...")
+//    }
+//
+//    private val gattCallback = object : BluetoothGattCallback() {
+//        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+//            when (newState) {
+//                BluetoothProfile.STATE_CONNECTED -> {
+//                    retryCount = 0
+//                    runOnUiThread {
+//                        toast("Connected to BLE, discovering services...")
+//                        homeViewModel.updateConnectionStatus(true, "Connected - Discovering services...")
+//                    }
+//                    gatt?.discoverServices()
+//                }
+//                BluetoothProfile.STATE_DISCONNECTED -> {
+//                    runOnUiThread {
+//                        toast("BLE disconnected. Retrying...")
+//                        homeViewModel.updateConnectionStatus(false, "BLE disconnected - Retrying...")
+//                    }
+//                    bluetoothGatt?.close()
+//                    bluetoothGatt = null
+//                    if (retryCount++ < maxRetries) {
+//                        Handler(Looper.getMainLooper()).postDelayed({ connectToBLE() }, reconnectDelay)
+//                    } else {
+//                        runOnUiThread {
+//                            toast("Failed to reconnect after $maxRetries attempts")
+//                            homeViewModel.updateConnectionStatus(false, "Connection failed")
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//
+//        override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
+//            val charac = gatt?.getService(serviceUUID)?.getCharacteristic(characteristicUUID)
+//            if (charac != null) {
+//                gatt.setCharacteristicNotification(charac, true)
+//                val descriptor = charac.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+//                descriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+//                gatt.writeDescriptor(descriptor)
+//                runOnUiThread {
+//                    toast("BLE notifications enabled")
+//                    homeViewModel.updateConnectionStatus(true, "Connected - Receiving sensor data")
+//                }
+//            } else {
+//                runOnUiThread {
+//                    toast("BLE characteristic not found")
+//                    homeViewModel.updateConnectionStatus(false, "BLE characteristic not found")
+//                }
+//            }
+//        }
+//
+//        override fun onCharacteristicChanged(gatt: BluetoothGatt?, characteristic: BluetoothGattCharacteristic?) {
+//            val value = characteristic?.getStringValue(0)
+//            value?.let { handleSensorData(it) }
+//        }
+//    }
+//
+//    private fun handleSensorData(line: String) {
+//        val parts = line.split(",")
+//        println("Incoming data: $line")
+//
+//        if (parts.size >= 3) { // Ukuran data disesuaikan, misal format: "TYPE,BPM,SPO2"
+//            try {
+//                val heartRate = parts[1].trim().toInt()
+//                val spo2 = parts[2].trim().toInt()
+//
+//                val vitals = Vitals(heartRate, spo2)
+//
+//                // Update HomeViewModel dengan data sensor riil
+//                runOnUiThread {
+//                    homeViewModel.updateSensorData(heartRate, spo2)
+//                }
+//
+//                val result = AsthmaDetector.detect(vitals)
+//
+//                runOnUiThread {
+//                    val statusText = when (result) {
+//                        AsthmaLevel.SEVERE, AsthmaLevel.MODERATE -> {
+//                            println("Buzzer ON")
+//                            "⚠️ Asthma ${result.name.lowercase()} detected!"
+//                        }
+//                        AsthmaLevel.NORMAL -> {
+//                            "✅ Normal condition"
+//                        }
+//                    }
+//                    // Toast ini bisa dihilangkan jika notifikasi sudah muncul di halaman Notifikasi
+//                    // Toast.makeText(this@MainActivity, statusText, Toast.LENGTH_LONG).show()
+//                }
+//            } catch (e: Exception) {
+//                println("Error parsing BLE data: ${e.message}")
+//                runOnUiThread {
+//                    homeViewModel.updateConnectionStatus(false, "Error parsing sensor data")
+//                }
+//            }
+//        }
+//    }
+//
+//    private fun alert(msg: String) {
+//        Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+//    }
+//
+//    private fun toast(msg: String) {
+//        runOnUiThread {
+//            Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+//        }
+//    }
+//
+//    override fun onDestroy() {
+//        bluetoothGatt?.close()
+//        bluetoothGatt = null
+//        super.onDestroy()
+//    }
+//}
 //package com.example.percobaan6 NIERRRRRRRRRRRRRRRR
 //
 //import android.Manifest

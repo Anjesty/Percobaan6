@@ -15,10 +15,12 @@ class HistoryFragment : Fragment() {
     private var _binding: FragmentHistoryBinding? = null
     private val binding get() = _binding!!
 
-    // Menggunakan HomeViewModel yang sama dengan Activity dan HomeFragment
     private val homeViewModel: HomeViewModel by lazy {
         ViewModelProvider(requireActivity()).get(HomeViewModel::class.java)
     }
+
+    // Perubahan: Adapter dibuat sekali sebagai properti kelas
+    private lateinit var historyAdapter: HistoryAdapter
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -28,20 +30,29 @@ class HistoryFragment : Fragment() {
         _binding = FragmentHistoryBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        // Mengatur heading text
-        binding.textHistory.text= "Health Parameters History"
-
-        // Setup RecyclerView
-        val recyclerView = binding.recyclerViewHistory
-        recyclerView.layoutManager = LinearLayoutManager(context)
-
-        // Amati data riwayat dari HomeViewModel
-        homeViewModel.dailyHealthHistory.observe(viewLifecycleOwner) { healthRecords ->
-            // Balik urutan list agar "Today" selalu di atas jika ada data lain
-            recyclerView.adapter = HistoryAdapter(healthRecords.reversed())
-        }
+        setupRecyclerView()
+        observeHistoryData()
 
         return root
+    }
+
+    private fun setupRecyclerView() {
+        // Inisialisasi adapter di sini, hanya sekali
+        historyAdapter = HistoryAdapter()
+        binding.recyclerViewHistory.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = historyAdapter
+        }
+    }
+
+    private fun observeHistoryData() {
+        binding.textHistory.text = "Health Parameters History"
+
+        homeViewModel.dailyHealthHistory.observe(viewLifecycleOwner) { healthRecords ->
+            // Perubahan: Gunakan submitList untuk update yang efisien
+            // Tidak perlu lagi .reversed(), urutan dari ViewModel sudah benar
+            historyAdapter.submitList(healthRecords)
+        }
     }
 
     override fun onDestroyView() {
@@ -49,6 +60,57 @@ class HistoryFragment : Fragment() {
         _binding = null
     }
 }
+//package com.example.percobaan6.ui.history HAMPIR BENER 2222222222222222222
+//
+//import android.os.Bundle
+//import android.view.LayoutInflater
+//import android.view.View
+//import android.view.ViewGroup
+//import androidx.fragment.app.Fragment
+//import androidx.lifecycle.ViewModelProvider
+//import androidx.recyclerview.widget.LinearLayoutManager
+//import com.example.percobaan6.databinding.FragmentHistoryBinding
+//import com.example.percobaan6.ui.home.HomeViewModel
+//
+//class HistoryFragment : Fragment() {
+//
+//    private var _binding: FragmentHistoryBinding? = null
+//    private val binding get() = _binding!!
+//
+//    // Menggunakan HomeViewModel yang sama dengan Activity dan HomeFragment
+//    private val homeViewModel: HomeViewModel by lazy {
+//        ViewModelProvider(requireActivity()).get(HomeViewModel::class.java)
+//    }
+//
+//    override fun onCreateView(
+//        inflater: LayoutInflater,
+//        container: ViewGroup?,
+//        savedInstanceState: Bundle?
+//    ): View {
+//        _binding = FragmentHistoryBinding.inflate(inflater, container, false)
+//        val root: View = binding.root
+//
+//        // Mengatur heading text
+//        binding.textHistory.text= "Health Parameters History"
+//
+//        // Setup RecyclerView
+//        val recyclerView = binding.recyclerViewHistory
+//        recyclerView.layoutManager = LinearLayoutManager(context)
+//
+//        // Amati data riwayat dari HomeViewModel
+//        homeViewModel.dailyHealthHistory.observe(viewLifecycleOwner) { healthRecords ->
+//            // Balik urutan list agar "Today" selalu di atas jika ada data lain
+//            recyclerView.adapter = HistoryAdapter(healthRecords.reversed())
+//        }
+//
+//        return root
+//    }
+//
+//    override fun onDestroyView() {
+//        super.onDestroyView()
+//        _binding = null
+//    }
+//}
 //package com.example.percobaan6.ui.history NIERRRRRRR
 //
 //import android.os.Bundle
