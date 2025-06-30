@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
-    private val deviceAddress = "8C:4F:00:3C:99:CE" // Ganti MAC ESP32
+    private val deviceAddress = "44:1D:64:F7:A5:9A" // Ganti MAC ESP32
     private val serviceUUID = UUID.fromString("12345678-1234-1234-1234-1234567890ab")
     private val characteristicUUID = UUID.fromString("abcd1234-ab12-cd34-ef56-abcdef123456")
     private var bluetoothGatt: BluetoothGatt? = null
