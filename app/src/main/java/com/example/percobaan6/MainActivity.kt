@@ -2,7 +2,10 @@ package com.example.percobaan6
 
 import android.Manifest
 import android.bluetooth.*
+import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.os.*
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,7 +20,134 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.navigation.NavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import java.util.*
+// Imports for SoundPlayer
+import android.media.AudioManager
+import android.media.MediaPlayer
+// Imports for PhoneAndSmsManager
+import android.net.Uri
+import android.telephony.SmsManager // NEW IMPORT for automatic SMS sending // For showing toasts
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import kotlinx.coroutines.suspendCancellableCoroutine
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import kotlin.coroutines.resume
 
+class SoundPlayer(private val context: Context) {
+    private var mediaPlayer: MediaPlayer? = null
+    private val audioManager: AudioManager =
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    fun setMaxVolume() {
+        audioManager.setStreamVolume(
+            AudioManager.STREAM_MUSIC,
+            audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+            0
+        )
+    }
+
+    fun playSound(rawResId: Int) {
+        stopSound()
+        mediaPlayer = MediaPlayer.create(context, rawResId)
+        mediaPlayer?.setOnCompletionListener { mp ->
+            mp.release()
+            mediaPlayer = null
+        }
+        mediaPlayer?.setOnErrorListener { mp, what, extra ->
+            mp.release()
+            mediaPlayer = null
+            false
+        }
+        mediaPlayer?.start()
+    }
+
+    fun stopSound() {
+        mediaPlayer?.apply {
+            if (isPlaying) {
+                stop()
+            }
+            release()
+        }
+        mediaPlayer = null
+    }
+
+    fun release() {
+        stopSound()
+    }
+}
+class LocationManager(
+    private val context: Context,
+    private val fusedLocationProviderClient: FusedLocationProviderClient
+) {
+    suspend fun getLocation(): Location? {
+        val hasGrantedFineLocationPermission = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasGrantedCoarseLocationPermission = ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val systemLocationManager = context.getSystemService(
+            Context.LOCATION_SERVICE
+        ) as LocationManager
+
+        val isGpsEnabled = systemLocationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER) ||
+                systemLocationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+
+        if (!isGpsEnabled && !(hasGrantedCoarseLocationPermission || hasGrantedFineLocationPermission)) {
+            return null
+        }
+
+        return suspendCancellableCoroutine { cont ->
+            fusedLocationProviderClient.lastLocation.apply {
+                if (isComplete) {
+                    if (isSuccessful) {
+                        cont.resume(result)
+                    } else {
+                        cont.resume(null)
+                    }
+                    return@suspendCancellableCoroutine
+                }
+                addOnSuccessListener {
+                    cont.resume(result)
+                }
+                addOnFailureListener {
+                    cont.resume(null)
+                }
+                addOnCanceledListener {
+                    cont.cancel()
+                }
+            }
+        }
+    }
+}
+class PhoneAndSmsManager(private val context: Context) {
+    // MODIFIED: This function now sends SMS automatically without launching a messaging app.
+    // Ensure the SEND_SMS permission is granted.
+    fun sendSms(phoneNumber: String, message: String) {
+        // This check is good practice, though permission should be handled by your UI
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
+            try {
+                // Get the default SmsManager instance
+                val smsManager: SmsManager = context.getSystemService(SmsManager::class.java)
+
+                // You can divide the message if it's long, and send it in parts.
+                // For simplicity here, we send a single text message.
+                // For robust error handling (delivery reports), you'd use PendingIntents for sentIntent and deliveryIntent.
+                smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+
+                Toast.makeText(context, "SMS sent automatically to $phoneNumber", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Failed to send SMS automatically: ${e.message}", Toast.LENGTH_LONG).show()
+                e.printStackTrace() // Print stack trace to logcat for debugging
+            }
+        } else {
+            Toast.makeText(context, "SMS permission not granted. Cannot send automatically.", Toast.LENGTH_LONG).show()
+        }
+    }
+}
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
@@ -27,9 +157,8 @@ class MainActivity : AppCompatActivity() {
     private val characteristicUUID = UUID.fromString("abcd1234-ab12-cd34-ef56-abcdef123456")
     private var bluetoothGatt: BluetoothGatt? = null
 
-    private val phoneNumber = "+6281234567890"
     private var retryCount = 0
-    private val maxRetries = 5
+    private val maxRetries = 10
     private val reconnectDelay = 3000L
 
     // Add reference to HomeViewModel to pass sensor data
