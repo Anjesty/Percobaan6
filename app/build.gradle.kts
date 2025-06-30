@@ -68,6 +68,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
+    implementation(libs.onnxruntime.android)
+
     // Test dependencies common to both
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
