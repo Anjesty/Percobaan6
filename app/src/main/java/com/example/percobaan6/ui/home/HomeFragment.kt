@@ -23,7 +23,11 @@ class HomeFragment : Fragment() {
 
     private lateinit var heartRateChart: LineChart
     private lateinit var spo2Chart: LineChart
-    private lateinit var homeViewModel: HomeViewModel
+
+    // Menggunakan 'by lazy' dan 'requireActivity()' agar ViewModel sama dengan yang ada di MainActivity
+    private val homeViewModel: HomeViewModel by lazy {
+        ViewModelProvider(requireActivity()).get(HomeViewModel::class.java)
+    }
 
     private var heartRateCounter = 0
     private var spo2Counter = 0
@@ -34,7 +38,6 @@ class HomeFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
@@ -163,8 +166,10 @@ class HomeFragment : Fragment() {
 
         homeViewModel.healthAlerts.observe(viewLifecycleOwner) { alerts ->
             if (alerts.isNotEmpty()) {
-                val criticalAlerts = alerts.filter { it.status == com.example.percobaan6.ui.history.AlertLevel.CRITICAL }
-                val warningAlerts = alerts.filter { it.status == com.example.percobaan6.ui.history.AlertLevel.WARNING }
+                val criticalAlerts =
+                    alerts.filter { it.status == com.example.percobaan6.ui.history.AlertLevel.CRITICAL }
+                val warningAlerts =
+                    alerts.filter { it.status == com.example.percobaan6.ui.history.AlertLevel.WARNING }
 
                 if (criticalAlerts.isNotEmpty() || warningAlerts.isNotEmpty()) {
                     binding.healthAlertCard.visibility = View.VISIBLE
@@ -217,6 +222,225 @@ class HomeFragment : Fragment() {
         _binding = null
     }
 }
+//package com.example.percobaan6.ui.home NIERRRRR
+//
+//import android.animation.ValueAnimator
+//import android.graphics.Color
+//import android.os.Bundle
+//import android.view.LayoutInflater
+//import android.view.View
+//import android.view.ViewGroup
+//import androidx.fragment.app.Fragment
+//import androidx.lifecycle.ViewModelProvider
+//import com.example.percobaan6.databinding.FragmentHomeBinding
+//import com.github.mikephil.charting.charts.LineChart
+//import com.github.mikephil.charting.components.XAxis
+//import com.github.mikephil.charting.data.Entry
+//import com.github.mikephil.charting.data.LineData
+//import com.github.mikephil.charting.data.LineDataSet
+//import com.github.mikephil.charting.formatter.ValueFormatter
+//
+//class HomeFragment : Fragment() {
+//
+//    private var _binding: FragmentHomeBinding? = null
+//    private val binding get() = _binding!!
+//
+//    private lateinit var heartRateChart: LineChart
+//    private lateinit var spo2Chart: LineChart
+//    private lateinit var homeViewModel: HomeViewModel
+//
+//    private var heartRateCounter = 0
+//    private var spo2Counter = 0
+//    private val maxDataPoints = 20
+//
+//    override fun onCreateView(
+//        inflater: LayoutInflater,
+//        container: ViewGroup?,
+//        savedInstanceState: Bundle?
+//    ): View {
+//        homeViewModel = ViewModelProvider(this).get(HomeViewModel::class.java)
+//        _binding = FragmentHomeBinding.inflate(inflater, container, false)
+//        val root: View = binding.root
+//
+//        initializeCharts()
+//        observeViewModel()
+//
+//        return root
+//    }
+//
+//    private fun initializeCharts() {
+//        heartRateChart = binding.heartRateChart
+//        spo2Chart = binding.spo2Chart
+//
+//        binding.breathRateChart.visibility = View.GONE
+//        binding.skinTempChart.visibility = View.GONE
+//        binding.edaChart.visibility = View.GONE
+//
+//        setupChart(heartRateChart, "Heart Rate (BPM)", Color.rgb(255, 102, 102))
+//        setupChart(spo2Chart, "SPO2 (%)", Color.rgb(102, 178, 255))
+//
+//        clearCharts()
+//    }
+//
+//    private fun setupChart(chart: LineChart, label: String, color: Int) {
+//        chart.apply {
+//            description.isEnabled = false
+//            setTouchEnabled(false)
+//            isDragEnabled = false
+//            setScaleEnabled(false)
+//            setPinchZoom(false)
+//            setDrawGridBackground(false)
+//
+//            xAxis.apply {
+//                position = XAxis.XAxisPosition.BOTTOM
+//                setDrawGridLines(false)
+//                granularity = 1f
+//                labelCount = 5
+//                textColor = Color.rgb(62, 44, 129)
+//                valueFormatter = object : ValueFormatter() {
+//                    override fun getFormattedValue(value: Float): String {
+//                        return "${value.toInt()}s"
+//                    }
+//                }
+//            }
+//
+//            axisLeft.apply {
+//                setDrawGridLines(true)
+//                gridColor = Color.rgb(230, 230, 230)
+//                textColor = Color.rgb(62, 44, 129)
+//            }
+//
+//            axisRight.isEnabled = false
+//
+//            legend.apply {
+//                textColor = Color.rgb(62, 44, 129)
+//                textSize = 12f
+//            }
+//        }
+//
+//        val entries = ArrayList<Entry>()
+//        val dataSet = LineDataSet(entries, label).apply {
+//            this.color = color
+//            setCircleColor(color)
+//            lineWidth = 2f
+//            circleRadius = 3f
+//            setDrawCircleHole(false)
+//            valueTextSize = 0f
+//            setDrawFilled(true)
+//            fillAlpha = 50
+//            fillColor = color
+//        }
+//
+//        chart.data = LineData(dataSet)
+//        chart.invalidate()
+//    }
+//
+//    private fun clearCharts() {
+//        clearChart(heartRateChart)
+//        clearChart(spo2Chart)
+//        heartRateCounter = 0
+//        spo2Counter = 0
+//    }
+//
+//    private fun clearChart(chart: LineChart) {
+//        val data = chart.data
+//        if (data != null) {
+//            val dataSet = data.getDataSetByIndex(0) as LineDataSet
+//            dataSet.clear()
+//            data.notifyDataChanged()
+//            chart.notifyDataSetChanged()
+//            chart.invalidate()
+//        }
+//    }
+//
+//    private fun observeViewModel() {
+//        homeViewModel.currentHealthData.observe(viewLifecycleOwner) { healthData ->
+//            if (healthData != null) {
+//                updateChartData(heartRateChart, heartRateCounter, healthData.heartRate)
+//                updateChartData(spo2Chart, spo2Counter, healthData.spo2)
+//
+//                binding.currentHeartRateValue.text = healthData.heartRate.toInt().toString()
+//                binding.currentSpo2Value.text = healthData.spo2.toInt().toString()
+//
+//                heartRateCounter++
+//                spo2Counter++
+//            } else {
+//                binding.currentHeartRateValue.text = "--"
+//                binding.currentSpo2Value.text = "--"
+//                clearCharts()
+//            }
+//        }
+//
+//        homeViewModel.connectionStatus.observe(viewLifecycleOwner) { status ->
+//            binding.connectionStatusText.text = status
+//        }
+//
+//        homeViewModel.isConnected.observe(viewLifecycleOwner) { isConnected ->
+//            val indicatorColor = if (isConnected) "#4CAF50" else "#FF9800"
+//            binding.connectionIndicator.backgroundTintList =
+//                android.content.res.ColorStateList.valueOf(Color.parseColor(indicatorColor))
+//
+//            if (!isConnected) {
+//                clearCharts()
+//            }
+//        }
+//
+//        homeViewModel.healthAlerts.observe(viewLifecycleOwner) { alerts ->
+//            if (alerts.isNotEmpty()) {
+//                val criticalAlerts = alerts.filter { it.status == com.example.percobaan6.ui.history.AlertLevel.CRITICAL }
+//                val warningAlerts = alerts.filter { it.status == com.example.percobaan6.ui.history.AlertLevel.WARNING }
+//
+//                if (criticalAlerts.isNotEmpty() || warningAlerts.isNotEmpty()) {
+//                    binding.healthAlertCard.visibility = View.VISIBLE
+//                    val alertMessage = (criticalAlerts + warningAlerts).joinToString("\n") { it.message }
+//                    binding.healthAlertText.text = alertMessage
+//                } else {
+//                    binding.healthAlertCard.visibility = View.GONE
+//                }
+//            } else {
+//                binding.healthAlertCard.visibility = View.GONE
+//            }
+//        }
+//    }
+//
+//    private fun updateChartData(chart: LineChart, counter: Int, value: Float) {
+//        val data = chart.data ?: return
+//        val dataSet = data.getDataSetByIndex(0) as LineDataSet
+//
+//        dataSet.addEntry(Entry(counter.toFloat(), value))
+//
+//        if (dataSet.entryCount > maxDataPoints) {
+//            dataSet.removeFirst()
+//
+//            for (i in 0 until dataSet.entryCount) {
+//                val entry = dataSet.getEntryForIndex(i)
+//                entry.x = i.toFloat()
+//            }
+//        }
+//
+//        data.notifyDataChanged()
+//        chart.notifyDataSetChanged()
+//
+//        chart.setVisibleXRangeMaximum(maxDataPoints.toFloat())
+//        chart.moveViewToX(dataSet.entryCount.toFloat())
+//
+//        animateChartUpdate(chart)
+//    }
+//
+//    private fun animateChartUpdate(chart: LineChart) {
+//        val animator = ValueAnimator.ofFloat(0f, 1f)
+//        animator.duration = 300
+//        animator.addUpdateListener {
+//            chart.invalidate()
+//        }
+//        animator.start()
+//    }
+//
+//    override fun onDestroyView() {
+//        super.onDestroyView()
+//        _binding = null
+//    }
+//}
 //package com.example.percobaan6.ui.home
 //
 //import android.animation.ValueAnimator
